@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Painel Financeiro Online</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg: #12081f;
+      --bg-2: #1b1032;
+      --card: rgba(109,40,217,0.12);
+      --card-border: rgba(168,85,247,0.22);
+      --text: #e5e7eb;
+      --muted: #b6c0d1;
+      --title: #ffffff;
+      --income: #22c55e;
+      --expense: #ef4444;
+      --invest: #60a5fa;
+      --balance: #facc15;
+      --accent: #8b5cf6;
+      --accent-2: #a855f7;
+      --danger: #fb7185;
+      --shadow: 0 18px 36px rgba(0,0,0,0.35);
+      --radius: 20px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background: linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 45%, #111827 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 18px;
+    }
+    .hidden { display: none !important; }
+    .container { max-width: 1380px; margin: 0 auto; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--card-border);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(8px);
+      border-radius: var(--radius);
+    }
+    .auth-shell {
+      min-height: calc(100vh - 36px);
+      display: grid;
+      place-items: center;
+    }
+    .auth-card {
+      width: min(460px, 100%);
+      padding: 24px;
+    }
+    .auth-card h1 { font-size: 2rem; color: var(--title); margin-bottom: 8px; }
+    .auth-card p { color: var(--muted); line-height: 1.5; margin-bottom: 18px; }
+    .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+    .tab {
+      flex: 1;
+      border: 1px solid var(--card-border);
+      background: rgba(255,255,255,0.04);
+      color: var(--text);
+      padding: 11px 14px;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+    .tab.active { background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field label { font-size: .92rem; color: var(--muted); }
+    .field input, .field select, .field textarea {
+      width: 100%;
+      background: rgba(255,255,255,0.05);
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,0.11);
+      border-radius: 12px;
+      padding: 12px 14px;
+      outline: none;
+    }
+    .field textarea { min-height: 92px; resize: vertical; }
+    .field input:focus, .field select:focus, .field textarea:focus {
+      border-color: rgba(168,85,247,0.75);
+      box-shadow: 0 0 0 3px rgba(168,85,247,0.18);
+    }
+    .stack { display: grid; gap: 12px; }
+    button {
+      border: none;
+      cursor: pointer;
+      border-radius: 12px;
+      padding: 12px 16px;
+      font-weight: 700;
+      transition: .15s ease;
+    }
+    button:hover { transform: translateY(-1px); opacity: .96; }
+    .btn-primary { background: linear-gradient(90deg, var(--accent), var(--accent-2)); color: white; }
+    .btn-secondary {
+      background: rgba(255,255,255,0.06);
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .btn-danger {
+      background: rgba(251,113,133,0.12);
+      color: #fecdd3;
+      border: 1px solid rgba(251,113,133,0.2);
+    }
+    .message { margin-top: 12px; color: #ddd6fe; min-height: 20px; font-size: .92rem; }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    .header h1 { font-size: clamp(1.8rem, 3vw, 2.7rem); color: var(--title); margin-bottom: 8px; }
+    .header p { color: var(--muted); max-width: 760px; line-height: 1.5; }
+    .user-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: var(--text);
+      margin-bottom: 10px;
+    }
+    .top-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+    .summary-grid, .chart-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+    .summary-card { padding: 22px; }
+    .summary-card .label { color: var(--muted); margin-bottom: 10px; }
+    .summary-card .value { font-size: 2rem; font-weight: 800; color: var(--title); }
+    .summary-card.income .value { color: var(--income); }
+    .summary-card.expense .value { color: var(--expense); }
+    .summary-card.balance .value { color: var(--balance); }
+    .summary-card.carry .value { color: #c4b5fd; }
+    .home-grid { display: grid; grid-template-columns: 1.05fr 1fr; gap: 18px; }
+    .section { padding: 20px; }
+    .section h2 { color: var(--title); font-size: 1.15rem; margin-bottom: 14px; }
+    .mini-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 12px; }
+    .mini-card {
+      padding: 14px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .mini-card .k { color: var(--muted); font-size: .82rem; margin-bottom: 6px; }
+    .mini-card .v { color: var(--title); font-size: 1.04rem; font-weight: 700; }
+    .list { display: grid; gap: 12px; margin-top: 14px; max-height: 460px; overflow: auto; padding-right: 4px; }
+    .list-item {
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.03);
+      border-radius: 16px;
+      padding: 14px;
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: flex-start;
+    }
+    .list-item strong { display: block; color: var(--title); margin-bottom: 6px; }
+    .list-item span, .list-item small, .list-item p { color: var(--muted); line-height: 1.45; display: block; }
+    .tag {
+      display: inline-block;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: .78rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      margin-right: 6px;
+    }
+    .tag.income { background: rgba(34,197,94,0.12); color: var(--income); }
+    .tag.expense { background: rgba(239,68,68,0.12); color: var(--expense); }
+    .tag.invest { background: rgba(96,165,250,0.12); color: var(--invest); }
+    .tag.goal { background: rgba(168,85,247,0.16); color: #ddd6fe; }
+    .tag.repeat { background: rgba(250,204,21,0.12); color: #fde68a; }
+    .amount { font-size: 1.04rem; font-weight: 800; white-space: nowrap; }
+    .amount.income { color: var(--income); }
+    .amount.expense { color: var(--expense); }
+    .amount.invest { color: var(--invest); }
+    .toolbar, .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+    .table-wrap { overflow: auto; margin-top: 14px; }
+    .history-table { width: 100%; min-width: 760px; border-collapse: collapse; }
+    .history-table th, .history-table td {
+      text-align: left;
+      padding: 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      font-size: .92rem;
+    }
+    .history-table th { color: var(--muted); font-weight: 600; }
+    .empty { color: var(--muted); padding: 8px 2px; }
+    .progress-wrap {
+      width: 100%;
+      height: 12px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 10px;
+    }
+    .progress-bar { height: 100%; background: linear-gradient(90deg, var(--accent), var(--invest)); }
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(2,6,23,0.76); display: none;
+      align-items: center; justify-content: center; padding: 16px; z-index: 1000;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal {
+      width: min(1120px, 100%); max-height: 92vh; overflow: auto;
+      background: linear-gradient(180deg, #140b24 0%, #111827 100%);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 22px; box-shadow: var(--shadow); padding: 20px;
+    }
+    .modal-header {
+      display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 16px;
+    }
+    .modal-header h2 { color: var(--title); }
+    .close-btn { width: 42px; height: 42px; padding: 0; }
+    .full-chart { padding: 20px; margin-bottom: 18px; }
+    .full-chart canvas { width: 100% !important; max-height: 360px; }
+    .footer-note { margin-top: 18px; color: var(--muted); text-align: center; font-size: .86rem; }
+    .loader {
+      position: fixed; inset: 0; background: rgba(8,12,23,0.65); display: none; place-items: center; z-index: 1400;
+    }
+    .loader.active { display: grid; }
+    .loader-box { padding: 18px 22px; border-radius: 16px; }
+    @media (max-width: 980px) { .home-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 640px) {
+      body { padding: 12px; }
+      .list-item { flex-direction: column; }
+      .mini-stats { grid-template-columns: 1fr; }
+      .top-actions button, .actions button { width: 100%; }
+      .summary-card .value { font-size: 1.6rem; }
+    }
+  </style>
+</head>
+<body>
+  <div id="loader" class="loader"><div class="loader-box card">Carregando...</div></div>
+
+  <section id="authView" class="auth-shell">
+    <div class="auth-card card">
+      <h1>Painel Financeiro Online</h1>
+      <p>Login com e-mail e senha, dados separados por usuário e armazenamento no banco de dados.</p>
+
+      <div class="tabs">
+        <button class="tab active" data-tab="login">Entrar</button>
+        <button class="tab" data-tab="register">Cadastrar</button>
+        <button class="tab" data-tab="recover">Recuperar</button>
+      </div>
+
+      <div id="tab-login" class="tab-panel stack">
+        <div class="field"><label>E-mail</label><input id="loginEmail" type="email" placeholder="seuemail@exemplo.com"></div>
+        <div class="field"><label>Senha</label><input id="loginPassword" type="password" placeholder="••••••••"></div>
+        <button class="btn-primary" id="loginBtn">Entrar</button>
+      </div>
+
+      <div id="tab-register" class="tab-panel stack hidden">
+        <div class="field"><label>Nome</label><input id="registerName" type="text" placeholder="Seu nome"></div>
+        <div class="field"><label>E-mail</label><input id="registerEmail" type="email" placeholder="seuemail@exemplo.com"></div>
+        <div class="field"><label>Senha</label><input id="registerPassword" type="password" placeholder="Mínimo 6 caracteres"></div>
+        <button class="btn-primary" id="registerBtn">Criar conta</button>
+      </div>
+
+      <div id="tab-recover" class="tab-panel stack hidden">
+        <div class="field"><label>E-mail</label><input id="recoverEmail" type="email" placeholder="seuemail@exemplo.com"></div>
+        <button class="btn-primary" id="recoverBtn">Enviar link de recuperação</button>
+      </div>
+
+      <div id="authMessage" class="message"></div>
+    </div>
+  </section>
+
+  <div id="appView" class="hidden">
+    <div class="container">
+      <header class="header">
+        <div>
+          <div class="user-chip"><span id="userEmail">-</span></div>
+          <h1>Painel Financeiro Pessoal</h1>
+          <p>Entradas, gastos, investimentos, metas, comparação mensal e gráfico visual com dados no banco.</p>
+        </div>
+        <div>
+          <div class="top-actions" style="margin-bottom:10px; justify-content:flex-end;">
+            <button class="btn-secondary" id="logoutBtn">Sair</button>
+          </div>
+          <div class="top-actions">
+            <button class="btn-primary" onclick="openModal('entriesModal')">Entradas</button>
+            <button class="btn-primary" onclick="openModal('expensesModal')">Gastos</button>
+            <button class="btn-primary" onclick="openModal('investmentsModal')">Investimentos</button>
+            <button class="btn-primary" onclick="openModal('goalsModal')">Metas</button>
+            <button class="btn-primary" onclick="openModal('comparisonModal')">Comparação</button>
+          </div>
+        </div>
+      </header>
+
+      <section class="toolbar card section" style="margin-bottom:18px;">
+        <div class="field">
+          <label for="mainMonth">Mês principal</label>
+          <input type="month" id="mainMonth">
+        </div>
+        <div class="field">
+          <label>Total herdado do mês passado</label>
+          <input type="text" id="carryFromPrevious" readonly>
+        </div>
+        <div class="field">
+          <label>Usuário</label>
+          <input type="text" id="userNameDisplay" readonly>
+        </div>
+      </section>
+
+      <section class="summary-grid">
+        <div class="card summary-card income"><div class="label">Total de Entradas</div><div class="value" id="totalIncome">R$ 0,00</div></div>
+        <div class="card summary-card expense"><div class="label">Total de Gastos</div><div class="value" id="totalExpense">R$ 0,00</div></div>
+        <div class="card summary-card balance"><div class="label">Saldo do Mês</div><div class="value" id="monthBalance">R$ 0,00</div></div>
+        <div class="card summary-card carry"><div class="label">Saldo do Mês Passado</div><div class="value" id="previousMonthBalance">R$ 0,00</div></div>
+      </section>
+
+      <section class="card full-chart">
+        <h2 style="margin-bottom:14px;">Gráfico dos últimos meses</h2>
+        <canvas id="financeChart"></canvas>
+      </section>
+
+      <main class="home-grid">
+        <section class="card section">
+          <h2>Resumo do mês</h2>
+          <div class="mini-stats">
+            <div class="mini-card"><div class="k">Salário lançado no mês</div><div class="v" id="salaryDisplay">R$ 0,00</div></div>
+            <div class="mini-card"><div class="k">Entradas extras</div><div class="v" id="extraIncomeDisplay">R$ 0,00</div></div>
+            <div class="mini-card"><div class="k">Qtd. de gastos</div><div class="v" id="expenseCount">0</div></div>
+            <div class="mini-card"><div class="k">Qtd. de investimentos</div><div class="v" id="investmentCount">0</div></div>
+          </div>
+          <div class="list" id="recentActivityList"></div>
+        </section>
+
+        <section class="card section">
+          <h2>Histórico e busca</h2>
+          <div class="toolbar">
+            <div class="field"><label for="filterMonth">Mês</label><input type="month" id="filterMonth"></div>
+            <div class="field"><label for="filterDate">Dia</label><input type="date" id="filterDate"></div>
+            <div class="field"><label for="filterCategory">Categoria</label><input type="text" id="filterCategory" placeholder="Ex: Alimentação"></div>
+            <div class="field"><label for="filterName">Buscar por nome</label><input type="text" id="filterName" placeholder="Ex: Mercado, MXRF11"></div>
+          </div>
+          <div class="table-wrap">
+            <table class="history-table">
+              <thead>
+                <tr>
+                  <th>Tipo</th>
+                  <th>Nome</th>
+                  <th>Categoria</th>
+                  <th>Data</th>
+                  <th>Valor</th>
+                  <th>Obs.</th>
+                </tr>
+              </thead>
+              <tbody id="historyBody"><tr><td colspan="6" class="empty">Nenhum lançamento encontrado.</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+
+      <div class="footer-note">Projeto pronto para publicar na Vercel ou Netlify usando Supabase como banco e autenticação.</div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="entriesModal">
+    <div class="modal">
+      <div class="modal-header"><h2>Entradas</h2><button class="btn-secondary close-btn" onclick="closeModal('entriesModal')">×</button></div>
+      <section class="section" style="padding:0;">
+        <h2 style="margin-bottom:12px;">Salário</h2>
+        <div class="form-grid">
+          <div class="field"><label for="salaryValue">Valor</label><input type="number" id="salaryValue" step="0.01"></div>
+          <div class="field"><label for="salaryDate">Data</label><input type="date" id="salaryDate"></div>
+          <div class="field" style="grid-column:1 / -1;"><label for="salaryNote">Observação</label><input type="text" id="salaryNote" placeholder="Ex: pagamento do mês"></div>
+        </div>
+        <div class="actions"><button class="btn-primary" id="salaryBtn">Salvar salário</button></div>
+
+        <h2 style="margin:24px 0 12px;">Outras entradas</h2>
+        <div class="form-grid">
+          <div class="field"><label for="extraIncomeValue">Valor</label><input type="number" id="extraIncomeValue" step="0.01"></div>
+          <div class="field"><label for="extraIncomeDate">Data</label><input type="date" id="extraIncomeDate"></div>
+          <div class="field" style="grid-column:1 / -1;"><label for="extraIncomeNote">Origem / Observação</label><input type="text" id="extraIncomeNote" placeholder="Ex: hora extra"></div>
+        </div>
+        <div class="actions">
+          <button class="btn-primary" id="extraIncomeSubmitBtn">Adicionar entrada</button>
+          <button class="btn-secondary hidden" id="extraIncomeCancelBtn">Cancelar edição</button>
+        </div>
+        <div class="list" id="incomeList"></div>
+      </section>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="expensesModal">
+    <div class="modal">
+      <div class="modal-header"><h2>Gastos</h2><button class="btn-secondary close-btn" onclick="closeModal('expensesModal')">×</button></div>
+      <section class="section" style="padding:0;">
+        <div class="form-grid">
+          <div class="field"><label for="expenseName">Nome do gasto</label><input type="text" id="expenseName"></div>
+          <div class="field"><label for="expenseCategory">Categoria</label>
+            <select id="expenseCategory">
+              <option>Casa</option><option>Alimentação</option><option>Transporte</option><option>Internet/Celular</option><option>Saúde</option><option>Lazer</option><option>Dívidas</option><option>Outros</option>
+            </select>
+          </div>
+          <div class="field"><label for="expenseValue">Valor</label><input type="number" id="expenseValue" step="0.01"></div>
+          <div class="field"><label for="expenseDate">Data</label><input type="date" id="expenseDate"></div>
+          <div class="field"><label for="expenseRepeat">Repetir</label><select id="expenseRepeat"><option value="nao">Não repetir</option><option value="mensal">Mensal</option></select></div>
+          <div class="field" style="grid-column:1 / -1;"><label for="expenseNote">Observação</label><input type="text" id="expenseNote"></div>
+        </div>
+        <div class="actions">
+          <button class="btn-primary" id="expenseSubmitBtn">Adicionar gasto</button>
+          <button class="btn-secondary hidden" id="expenseCancelEditBtn">Cancelar edição</button>
+        </div>
+        <div class="list" id="expenseList"></div>
+      </section>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="investmentsModal">
+    <div class="modal">
+      <div class="modal-header"><h2>Investimentos</h2><button class="btn-secondary close-btn" onclick="closeModal('investmentsModal')">×</button></div>
+      <section class="section" style="padding:0;">
+        <div class="form-grid">
+          <div class="field"><label for="investType">Tipo</label><select id="investType"><option>FII</option><option>Tesouro</option><option>ETF</option><option>Ação</option><option>Outro</option></select></div>
+          <div class="field"><label for="investName">Ativo</label><input type="text" id="investName"></div>
+          <div class="field"><label for="investValue">Valor investido</label><input type="number" id="investValue" step="0.01"></div>
+          <div class="field"><label for="investQty">Quantidade</label><input type="number" id="investQty" step="0.0001"></div>
+          <div class="field"><label for="investPrice">Preço por unidade</label><input type="number" id="investPrice" step="0.0001"></div>
+          <div class="field"><label for="investDate">Data</label><input type="date" id="investDate"></div>
+          <div class="field" style="grid-column:1 / -1;"><label for="investNote">Observação</label><input type="text" id="investNote"></div>
+        </div>
+        <div class="actions">
+          <button class="btn-primary" id="investSubmitBtn">Adicionar investimento</button>
+          <button class="btn-secondary hidden" id="investCancelEditBtn">Cancelar edição</button>
+        </div>
+        <div class="mini-stats">
+          <div class="mini-card"><div class="k">Total investido</div><div class="v" id="totalInvest">R$ 0,00</div></div>
+          <div class="mini-card"><div class="k">Patrimônio lançado</div><div class="v" id="investedPatrimony">R$ 0,00</div></div>
+          <div class="mini-card"><div class="k">Estimativa de proventos</div><div class="v" id="estimatedIncome">R$ 0,00</div></div>
+        </div>
+        <div class="list" id="investmentList"></div>
+      </section>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="goalsModal">
+    <div class="modal">
+      <div class="modal-header"><h2>Metas</h2><button class="btn-secondary close-btn" onclick="closeModal('goalsModal')">×</button></div>
+      <section class="section" style="padding:0;">
+        <div class="form-grid">
+          <div class="field"><label for="goalName">Nome da meta</label><input type="text" id="goalName"></div>
+          <div class="field"><label for="goalTarget">Valor-alvo</label><input type="number" id="goalTarget" step="0.01"></div>
+          <div class="field"><label for="goalCurrent">Valor atual</label><input type="number" id="goalCurrent" step="0.01"></div>
+          <div class="field"><label for="goalStart">Início</label><input type="date" id="goalStart"></div>
+          <div class="field"><label for="goalEnd">Fim</label><input type="date" id="goalEnd"></div>
+        </div>
+        <div class="actions">
+          <button class="btn-primary" id="goalSubmitBtn">Adicionar meta</button>
+          <button class="btn-secondary hidden" id="goalReserveBtn">Adicionar valor reservado</button>
+          <button class="btn-secondary hidden" id="goalCancelEditBtn">Cancelar edição</button>
+        </div>
+        <div class="list" id="goalsList"></div>
+      </section>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="comparisonModal">
+    <div class="modal">
+      <div class="modal-header"><h2>Comparação entre meses</h2><button class="btn-secondary close-btn" onclick="closeModal('comparisonModal')">×</button></div>
+      <section class="section" style="padding:0;">
+        <div class="toolbar">
+          <div class="field"><label for="compareFrom">De</label><input type="month" id="compareFrom"></div>
+          <div class="field"><label for="compareTo">Até</label><input type="month" id="compareTo"></div>
+          <div class="field" style="align-self:end;"><button class="btn-primary" id="runComparisonBtn">Atualizar comparação</button></div>
+        </div>
+        <div class="table-wrap">
+          <table class="history-table">
+            <thead>
+              <tr><th>Mês</th><th>Saldo anterior</th><th>Entradas</th><th>Gastos</th><th>Investimentos</th><th>Saldo final</th></tr>
+            </thead>
+            <tbody id="comparisonBody"><tr><td colspan="6" class="empty">Sem dados para comparar.</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://phvgoluzpqfxjspglkyp.supabase.co' ;
+    const SUPABASE_ANON_KEY = 'sb_publishable_a-7lvoWzDpoSeuReDJORLQ_rc6cNTOu' ;
+
+    let supabaseClient = null;
+    let currentUser = null;
+    let profileName = '';
+    let financeChart = null;
+    let editingExpenseId = null;
+    let editingGoalId = null;
+    let editingExtraIncomeId = null;
+    let editingInvestmentId = null;
+
+    const state = {
+      salary: null,
+      extraIncomes: [],
+      expenses: [],
+      investments: [],
+      goals: []
+    };
+
+    function qs(id) { return document.getElementById(id); }
+    function showLoader(show, text = 'Carregando...') { qs('loader').classList.toggle('active', show); qs('loader').querySelector('.loader-box').textContent = text; }
+    function showAuthMessage(text) { qs('authMessage').textContent = text; }
+    function monthFromDate(date) { return String(date || '').slice(0, 7); }
+    function getTodayISO() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+    function getCurrentMonth() { return getTodayISO().slice(0, 7); }
+    function previousMonth(month) {
+      const [y,m] = month.split('-').map(Number);
+      const d = new Date(y, m-2, 1);
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    }
+    function addMonths(month, amount) {
+      const [y,m] = month.split('-').map(Number);
+      const d = new Date(y, m-1 + amount, 1);
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    }
+    function formatCurrency(value) {
+      return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+    function openModal(id) { qs(id).classList.add('active'); }
+    function closeModal(id) { qs(id).classList.remove('active'); }
+    document.addEventListener('click', (e) => { if (e.target.classList.contains('modal-overlay')) e.target.classList.remove('active'); });
+
+    function buildSupabase() {
+      if (SUPABASE_URL.includes('COLE_') || SUPABASE_ANON_KEY.includes('COLE_')) {
+        throw new Error('Configure a SUPABASE_URL e a SUPABASE_ANON_KEY no topo do arquivo index.html.');
+      }
+      supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+
+    function setupTabs() {
+      document.querySelectorAll('.tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+          document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+          btn.classList.add('active');
+          qs(`tab-${btn.dataset.tab}`).classList.remove('hidden');
+        });
+      });
+    }
+
+    async function login() {
+      showLoader(true, 'Entrando...');
+      showAuthMessage('');
+      const { error } = await supabaseClient.auth.signInWithPassword({
+        email: qs('loginEmail').value.trim(),
+        password: qs('loginPassword').value
+      });
+      showLoader(false);
+      if (error) return showAuthMessage(error.message);
+      showAuthMessage('Login realizado.');
+    }
+
+    async function register() {
+      showLoader(true, 'Criando conta...');
+      showAuthMessage('');
+      const email = qs('registerEmail').value.trim();
+      const password = qs('registerPassword').value;
+      const full_name = qs('registerName').value.trim();
+      const { error } = await supabaseClient.auth.signUp({
+        email,
+        password,
+        options: { data: { full_name } }
+      });
+      showLoader(false);
+      if (error) return showAuthMessage(error.message);
+      showAuthMessage('Conta criada. Confira o e-mail para confirmar, se o Supabase pedir confirmação.');
+    }
+
+    async function recoverPassword() {
+      showLoader(true, 'Enviando link...');
+      showAuthMessage('');
+      const { error } = await supabaseClient.auth.resetPasswordForEmail(qs('recoverEmail').value.trim(), {
+        redirectTo: window.location.origin + window.location.pathname
+      });
+      showLoader(false);
+      if (error) return showAuthMessage(error.message);
+      showAuthMessage('Link de recuperação enviado.');
+    }
+
+    async function logout() {
+      await supabaseClient.auth.signOut();
+    }
+
+    async function ensureProfile() {
+      const full_name = currentUser?.user_metadata?.full_name || currentUser?.email?.split('@')[0] || 'Usuário';
+      profileName = full_name;
+      await supabaseClient.from('profiles').upsert({ id: currentUser.id, full_name }, { onConflict: 'id' });
+      qs('userEmail').textContent = currentUser.email;
+      qs('userNameDisplay').value = full_name;
+    }
+
+    async function loadData() {
+      showLoader(true, 'Carregando dados...');
+      const month = qs('mainMonth').value || getCurrentMonth();
+      const from = `${month}-01`;
+      const to = `${addMonths(month, 1)}-01`;
+
+      const [salaryRes, extraRes, expensesRes, investRes, goalsRes] = await Promise.all([
+        supabaseClient.from('salaries').select('*').gte('date', from).lt('date', to).order('date', { ascending: false }).limit(1),
+        supabaseClient.from('extra_incomes').select('*').order('date', { ascending: false }),
+        supabaseClient.from('expenses').select('*').order('date', { ascending: false }),
+        supabaseClient.from('investments').select('*').order('date', { ascending: false }),
+        supabaseClient.from('goals').select('*').order('created_at', { ascending: false })
+      ]);
+
+      const errors = [salaryRes, extraRes, expensesRes, investRes, goalsRes].map(r => r.error).filter(Boolean);
+      if (errors.length) {
+        showLoader(false);
+        alert(errors[0].message);
+        return;
+      }
+
+      state.salary = salaryRes.data?.[0] || null;
+      state.extraIncomes = extraRes.data || [];
+      state.expenses = expensesRes.data || [];
+      state.investments = investRes.data || [];
+      state.goals = goalsRes.data || [];
+
+      await ensureRecurringExpenses();
+      showLoader(false);
+      renderAll();
+    }
+
+    function recordsForMonth(items, month) {
+      return items.filter(item => monthFromDate(item.date) === month);
+    }
+    function sumValues(items) { return items.reduce((sum, item) => sum + Number(item.value || 0), 0); }
+    function sumGoalCurrent() { return state.goals.reduce((sum, item) => sum + Number(item.current || 0), 0); }
+    function getMonthSalary(month) { return monthFromDate(state.salary?.date) === month ? Number(state.salary?.value || 0) : 0; }
+    function getMonthExtra(month) { return sumValues(recordsForMonth(state.extraIncomes, month)); }
+    function getMonthExpenses(month) { return sumValues(recordsForMonth(state.expenses, month)); }
+    function getMonthInvestments(month) { return sumValues(recordsForMonth(state.investments, month)); }
+    function getMonthIncome(month) { return getMonthSalary(month) + getMonthExtra(month); }
+    function getMonthBalance(month) { return getMonthIncome(month) - getMonthExpenses(month) - getMonthInvestments(month); }
+    function getCarryFromPrevious(month) { return getMonthBalance(previousMonth(month)); }
+    function getEstimatedIncome() {
+      return state.investments.filter(item => String(item.type).toLowerCase() === 'fii').reduce((sum, item) => sum + (Number(item.qty || 0) * 0.10), 0);
+    }
+    function getPatrimony() {
+      return state.investments.reduce((sum, item) => sum + ((Number(item.qty || 0) > 0 && Number(item.price || 0) > 0) ? Number(item.qty) * Number(item.price) : Number(item.value || 0)), 0);
+    }
+
+    async function saveSalary() {
+      const value = parseFloat(qs('salaryValue').value);
+      const date = qs('salaryDate').value;
+      const note = qs('salaryNote').value.trim();
+      if (!value || value <= 0 || !date) return alert('Preencha valor e data do salário.');
+      showLoader(true, 'Salvando salário...');
+      const month = monthFromDate(date);
+      const from = `${month}-01`;
+      const to = `${addMonths(month, 1)}-01`;
+      const existing = await supabaseClient.from('salaries').select('id').gte('date', from).lt('date', to).limit(1);
+      let result;
+      if (existing.data?.[0]?.id) {
+        result = await supabaseClient.from('salaries').update({ value, date, note }).eq('id', existing.data[0].id);
+      } else {
+        result = await supabaseClient.from('salaries').insert({ value, date, note });
+      }
+      showLoader(false);
+      if (result.error) return alert(result.error.message);
+      qs('salaryValue').value = ''; qs('salaryDate').value = ''; qs('salaryNote').value = '';
+      await loadData();
+    }
+
+    async function saveExtraIncome() {
+      const value = parseFloat(qs('extraIncomeValue').value);
+      const date = qs('extraIncomeDate').value;
+      const note = qs('extraIncomeNote').value.trim();
+      if (!value || value <= 0 || !date) return alert('Preencha valor e data da entrada.');
+      showLoader(true, editingExtraIncomeId ? 'Atualizando entrada...' : 'Salvando entrada...');
+      const payload = { value, date, note };
+      const res = editingExtraIncomeId
+        ? await supabaseClient.from('extra_incomes').update(payload).eq('id', editingExtraIncomeId)
+        : await supabaseClient.from('extra_incomes').insert(payload);
+      showLoader(false);
+      if (res.error) return alert(res.error.message);
+      resetExtraIncomeForm();
+      await loadData();
+    }
+
+    function editExtraIncome(id) {
+      const item = state.extraIncomes.find(i => i.id === id); if (!item) return;
+      editingExtraIncomeId = id;
+      qs('extraIncomeValue').value = item.value || '';
+      qs('extraIncomeDate').value = item.date || '';
+      qs('extraIncomeNote').value = item.note || '';
+      qs('extraIncomeSubmitBtn').textContent = 'Salvar edição';
+      qs('extraIncomeCancelBtn').classList.remove('hidden');
+    }
+    function resetExtraIncomeForm() {
+      editingExtraIncomeId = null;
+      qs('extraIncomeValue').value = ''; qs('extraIncomeDate').value = ''; qs('extraIncomeNote').value = '';
+      qs('extraIncomeSubmitBtn').textContent = 'Adicionar entrada';
+      qs('extraIncomeCancelBtn').classList.add('hidden');
+    }
+
+    async function saveExpense() {
+      const name = qs('expenseName').value.trim();
+      const category = qs('expenseCategory').value;
+      const value = parseFloat(qs('expenseValue').value);
+      const date = qs('expenseDate').value;
+      const repeat = qs('expenseRepeat').value;
+      const note = qs('expenseNote').value.trim();
+      if (!name || !value || value <= 0 || !date) return alert('Preencha nome, valor e data do gasto.');
+      showLoader(true, editingExpenseId ? 'Atualizando gasto...' : 'Salvando gasto...');
+      let res;
+      if (editingExpenseId) {
+        res = await supabaseClient.from('expenses').update({ name, category, value, date, repeat, note }).eq('id', editingExpenseId);
+      } else {
+        const tempId = crypto.randomUUID();
+        res = await supabaseClient.from('expenses').insert({ name, category, value, date, repeat, note, recurring_group_id: repeat === 'mensal' ? tempId : null, client_temp_id: tempId });
+      }
+      showLoader(false);
+      if (res.error) return alert(res.error.message);
+      resetExpenseForm();
+      await loadData();
+    }
+
+    function editExpense(id) {
+      const item = state.expenses.find(i => i.id === id); if (!item) return;
+      editingExpenseId = id;
+      qs('expenseName').value = item.name || '';
+      qs('expenseCategory').value = item.category || 'Casa';
+      qs('expenseValue').value = item.value || '';
+      qs('expenseDate').value = item.date || '';
+      qs('expenseRepeat').value = item.repeat || 'nao';
+      qs('expenseNote').value = item.note || '';
+      qs('expenseSubmitBtn').textContent = 'Salvar edição';
+      qs('expenseCancelEditBtn').classList.remove('hidden');
+    }
+    function resetExpenseForm() {
+      editingExpenseId = null;
+      qs('expenseName').value = ''; qs('expenseCategory').value = 'Casa'; qs('expenseValue').value = ''; qs('expenseDate').value = ''; qs('expenseRepeat').value = 'nao'; qs('expenseNote').value = '';
+      qs('expenseSubmitBtn').textContent = 'Adicionar gasto'; qs('expenseCancelEditBtn').classList.add('hidden');
+    }
+
+    async function saveInvestment() {
+      const type = qs('investType').value;
+      const name = qs('investName').value.trim();
+      const value = parseFloat(qs('investValue').value);
+      const qty = parseFloat(qs('investQty').value || 0);
+      const price = parseFloat(qs('investPrice').value || 0);
+      const date = qs('investDate').value;
+      const note = qs('investNote').value.trim();
+      if (!name || !value || value <= 0 || !date) return alert('Preencha ativo, valor e data do investimento.');
+      showLoader(true, editingInvestmentId ? 'Atualizando investimento...' : 'Salvando investimento...');
+      const payload = { type, name, value, qty, price, date, note };
+      const res = editingInvestmentId
+        ? await supabaseClient.from('investments').update(payload).eq('id', editingInvestmentId)
+        : await supabaseClient.from('investments').insert(payload);
+      showLoader(false);
+      if (res.error) return alert(res.error.message);
+      resetInvestmentForm();
+      await loadData();
+    }
+
+    function editInvestment(id) {
+      const item = state.investments.find(i => i.id === id); if (!item) return;
+      editingInvestmentId = id;
+      qs('investType').value = item.type || 'FII';
+      qs('investName').value = item.name || '';
+      qs('investValue').value = item.value || '';
+      qs('investQty').value = item.qty || '';
+      qs('investPrice').value = item.price || '';
+      qs('investDate').value = item.date || '';
+      qs('investNote').value = item.note || '';
+      qs('investSubmitBtn').textContent = 'Salvar edição';
+      qs('investCancelEditBtn').classList.remove('hidden');
+    }
+    function resetInvestmentForm() {
+      editingInvestmentId = null;
+      qs('investType').value = 'FII'; qs('investName').value = ''; qs('investValue').value = ''; qs('investQty').value = ''; qs('investPrice').value = ''; qs('investDate').value = ''; qs('investNote').value = '';
+      qs('investSubmitBtn').textContent = 'Adicionar investimento'; qs('investCancelEditBtn').classList.add('hidden');
+    }
+
+    async function saveGoal() {
+      const name = qs('goalName').value.trim();
+      const target = parseFloat(qs('goalTarget').value);
+      const current = parseFloat(qs('goalCurrent').value);
+      const start = qs('goalStart').value;
+      const end = qs('goalEnd').value;
+      if (!name || !target || target <= 0 || Number.isNaN(current) || current < 0 || !start || !end) return alert('Preencha a meta corretamente.');
+      showLoader(true, editingGoalId ? 'Atualizando meta...' : 'Salvando meta...');
+      const payload = { name, target, current, start_date: start, end_date: end };
+      const res = editingGoalId
+        ? await supabaseClient.from('goals').update(payload).eq('id', editingGoalId)
+        : await supabaseClient.from('goals').insert(payload);
+      showLoader(false);
+      if (res.error) return alert(res.error.message);
+      resetGoalForm();
+      await loadData();
+    }
+    function editGoal(id) {
+      const item = state.goals.find(i => i.id === id); if (!item) return;
+      editingGoalId = id;
+      qs('goalName').value = item.name || ''; qs('goalTarget').value = item.target || ''; qs('goalCurrent').value = item.current || ''; qs('goalStart').value = item.start_date || ''; qs('goalEnd').value = item.end_date || '';
+      qs('goalSubmitBtn').textContent = 'Salvar edição'; qs('goalReserveBtn').classList.remove('hidden'); qs('goalCancelEditBtn').classList.remove('hidden');
+    }
+    function resetGoalForm() {
+      editingGoalId = null;
+      qs('goalName').value = ''; qs('goalTarget').value = ''; qs('goalCurrent').value = ''; qs('goalStart').value = ''; qs('goalEnd').value = '';
+      qs('goalSubmitBtn').textContent = 'Adicionar meta'; qs('goalReserveBtn').classList.add('hidden'); qs('goalCancelEditBtn').classList.add('hidden');
+    }
+    async function addReservedToGoal() {
+      if (!editingGoalId) return alert('Escolha uma meta para editar primeiro.');
+      const response = prompt('Digite o valor reservado que deseja adicionar:');
+      if (response === null) return;
+      const value = parseFloat(String(response).replace(',', '.'));
+      if (!value || value <= 0) return alert('Digite um valor válido.');
+      const goal = state.goals.find(g => g.id === editingGoalId); if (!goal) return;
+      showLoader(true, 'Atualizando meta...');
+      const res = await supabaseClient.from('goals').update({ current: Number(goal.current || 0) + value }).eq('id', editingGoalId);
+      showLoader(false);
+      if (res.error) return alert(res.error.message);
+      await loadData();
+    }
+
+    async function removeItem(type, id) {
+      if (!confirm('Deseja excluir este item?')) return;
+      showLoader(true, 'Excluindo...');
+      const table = {
+        income: 'extra_incomes',
+        expense: 'expenses',
+        investment: 'investments',
+        goal: 'goals'
+      }[type];
+      const res = await supabaseClient.from(table).delete().eq('id', id);
+      showLoader(false);
+      if (res.error) return alert(res.error.message);
+      await loadData();
+    }
+
+    async function ensureRecurringExpenses() {
+      const todayMonth = getCurrentMonth();
+      const recurring = state.expenses.filter(item => item.repeat === 'mensal');
+      for (const base of recurring) {
+        const groupId = base.recurring_group_id || base.client_temp_id || base.id;
+        let latestDate = base.date || '';
+        state.expenses.forEach(item => {
+          const sameGroup = (item.recurring_group_id || item.client_temp_id || item.id) === groupId;
+          if (sameGroup && item.date && item.date > latestDate) latestDate = item.date;
+        });
+        if (!latestDate) continue;
+        let nextDate = addOneMonthPreserveDay(latestDate);
+        while (nextDate && monthFromDate(nextDate) <= todayMonth) {
+          const exists = state.expenses.some(item => (item.recurring_group_id || item.client_temp_id || item.id) === groupId && item.date === nextDate);
+          if (!exists) {
+            const payload = { name: base.name, category: base.category, value: base.value, date: nextDate, repeat: 'mensal', note: base.note, recurring_group_id: groupId, generated_recurring: true };
+            const res = await supabaseClient.from('expenses').insert(payload);
+            if (!res.error) state.expenses.push({ ...payload, id: crypto.randomUUID() });
+          }
+          nextDate = addOneMonthPreserveDay(nextDate);
+        }
+      }
+    }
+    function addOneMonthPreserveDay(dateStr) {
+      if (!dateStr) return '';
+      const [year, month, day] = dateStr.split('-').map(Number);
+      const next = new Date(year, month, 1);
+      const targetYear = next.getFullYear();
+      const targetMonth = next.getMonth();
+      const lastDay = new Date(targetYear, targetMonth + 1, 0).getDate();
+      const safeDay = Math.min(day, lastDay);
+      return `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}-${String(safeDay).padStart(2, '0')}`;
+    }
+
+    function getAllHistoryItems() {
+      const items = [];
+      if (state.salary) items.push({ type: 'Entrada', name: 'Salário', category: 'Salário', date: state.salary.date || '', value: Number(state.salary.value || 0), note: state.salary.note || '' });
+      state.extraIncomes.forEach(item => items.push({ type: 'Entrada', name: item.note || 'Entrada extra', category: 'Outra entrada', date: item.date || '', value: Number(item.value || 0), note: item.note || '', id: item.id }));
+      state.expenses.forEach(item => items.push({ type: 'Gasto', name: item.name, category: item.category, date: item.date || '', value: Number(item.value || 0), note: item.note || '', id: item.id }));
+      state.investments.forEach(item => items.push({ type: 'Investimento', name: item.name, category: item.type, date: item.date || '', value: Number(item.value || 0), note: item.note || '', id: item.id }));
+      return items.sort((a,b) => String(b.date || '').localeCompare(String(a.date || '')));
+    }
+
+    function renderSummary() {
+      const month = qs('mainMonth').value || getCurrentMonth();
+      const salary = getMonthSalary(month);
+      const extra = getMonthExtra(month);
+      const expenses = getMonthExpenses(month);
+      const investments = getMonthInvestments(month);
+      const income = salary + extra;
+      const previous = getCarryFromPrevious(month);
+      const balance = previous + income - expenses - investments;
+      qs('totalIncome').textContent = formatCurrency(income);
+      qs('totalExpense').textContent = formatCurrency(expenses);
+      qs('monthBalance').textContent = formatCurrency(balance);
+      qs('previousMonthBalance').textContent = formatCurrency(previous);
+      qs('carryFromPrevious').value = formatCurrency(previous);
+      qs('salaryDisplay').textContent = formatCurrency(salary);
+      qs('extraIncomeDisplay').textContent = formatCurrency(extra);
+      qs('expenseCount').textContent = String(recordsForMonth(state.expenses, month).length);
+      qs('investmentCount').textContent = String(recordsForMonth(state.investments, month).length);
+      qs('totalInvest').textContent = formatCurrency(sumValues(state.investments));
+      qs('investedPatrimony').textContent = formatCurrency(getPatrimony());
+      qs('estimatedIncome').textContent = formatCurrency(getEstimatedIncome());
+    }
+
+    function renderIncomeList() {
+      const el = qs('incomeList');
+      const parts = [];
+      if (state.salary) {
+        parts.push(`<div class="list-item"><div><span class="tag income">Salário</span><strong>${state.salary.note || 'Salário do mês'}</strong><small>${state.salary.date || '-'}</small></div><div class="amount income">${formatCurrency(state.salary.value)}</div></div>`);
+      }
+      state.extraIncomes.forEach(item => {
+        parts.push(`<div class="list-item"><div><span class="tag income">Outra entrada</span><strong>${item.note || 'Entrada extra'}</strong><small>${item.date || '-'}</small></div><div><div class="amount income">${formatCurrency(item.value)}</div><div class="actions" style="justify-content:flex-end; margin-top:8px;"><button class="btn-secondary" onclick="editExtraIncome('${item.id}')">Editar</button><button class="btn-danger" onclick="removeItem('income','${item.id}')">Excluir</button></div></div></div>`);
+      });
+      el.innerHTML = parts.length ? parts.join('') : '<div class="empty">Nenhuma entrada cadastrada ainda.</div>';
+    }
+
+    function renderExpenseList() {
+      const el = qs('expenseList');
+      if (!state.expenses.length) { el.innerHTML = '<div class="empty">Nenhum gasto cadastrado ainda.</div>'; return; }
+      el.innerHTML = state.expenses.slice().sort((a,b) => String(b.date || '').localeCompare(String(a.date || ''))).map(item => `
+        <div class="list-item">
+          <div><span class="tag expense">${item.category}</span>${item.repeat === 'mensal' ? '<span class="tag repeat">Mensal</span>' : ''}<strong>${item.name}</strong><span>${item.note || 'Sem observação'}</span><small>${item.date || '-'}</small></div>
+          <div><div class="amount expense">${formatCurrency(item.value)}</div><div class="actions" style="justify-content:flex-end; margin-top:8px;"><button class="btn-secondary" onclick="editExpense('${item.id}')">Editar</button><button class="btn-danger" onclick="removeItem('expense','${item.id}')">Excluir</button></div></div>
+        </div>
+      `).join('');
+    }
+
+    function renderInvestmentList() {
+      const el = qs('investmentList');
+      if (!state.investments.length) { el.innerHTML = '<div class="empty">Nenhum investimento cadastrado ainda.</div>'; return; }
+      el.innerHTML = state.investments.map(item => `
+        <div class="list-item">
+          <div><span class="tag invest">${item.type}</span><strong>${item.name}</strong><span>Qtd: ${Number(item.qty || 0)} • Preço: ${formatCurrency(item.price || 0)}</span><span>${item.note || 'Sem observação'}</span><small>${item.date || '-'}</small></div>
+          <div><div class="amount invest">${formatCurrency(item.value)}</div><div class="actions" style="justify-content:flex-end; margin-top:8px;"><button class="btn-secondary" onclick="editInvestment('${item.id}')">Editar</button><button class="btn-danger" onclick="removeItem('investment','${item.id}')">Excluir</button></div></div>
+        </div>
+      `).join('');
+    }
+
+    function renderGoals() {
+      const el = qs('goalsList');
+      if (!state.goals.length) { el.innerHTML = '<div class="empty">Nenhuma meta cadastrada ainda.</div>'; return; }
+      el.innerHTML = state.goals.map(goal => {
+        const current = Number(goal.current || 0), target = Number(goal.target || 1), progress = Math.min((current / target) * 100, 100);
+        return `<div class="list-item"><div style="width:100%;"><span class="tag goal">Meta</span><strong>${goal.name}</strong><span>Início: ${goal.start_date || '-'} • Fim: ${goal.end_date || '-'}</span><span>${formatCurrency(current)} de ${formatCurrency(target)} • ${progress.toFixed(1)}%</span><div class="progress-wrap"><div class="progress-bar" style="width:${progress}%"></div></div></div><div class="actions" style="justify-content:flex-end;"><button class="btn-secondary" onclick="editGoal('${goal.id}')">Editar</button><button class="btn-danger" onclick="removeItem('goal','${goal.id}')">Excluir</button></div></div>`;
+      }).join('');
+    }
+
+    function renderHistory() {
+      const body = qs('historyBody');
+      let items = getAllHistoryItems();
+      const filterMonth = qs('filterMonth').value;
+      const filterDate = qs('filterDate').value;
+      const filterCategory = qs('filterCategory').value.trim().toLowerCase();
+      const filterName = qs('filterName').value.trim().toLowerCase();
+      if (filterMonth) items = items.filter(item => monthFromDate(item.date) === filterMonth);
+      if (filterDate) items = items.filter(item => item.date === filterDate);
+      if (filterCategory) items = items.filter(item => String(item.category || '').toLowerCase().includes(filterCategory));
+      if (filterName) items = items.filter(item => String(item.name || '').toLowerCase().includes(filterName) || String(item.note || '').toLowerCase().includes(filterName));
+      if (!items.length) { body.innerHTML = '<tr><td colspan="6" class="empty">Nenhum lançamento encontrado.</td></tr>'; return; }
+      body.innerHTML = items.map(item => `<tr><td>${item.type}</td><td>${item.name}</td><td>${item.category}</td><td>${item.date || '-'}</td><td>${formatCurrency(item.value)}</td><td>${item.note || '-'}</td></tr>`).join('');
+    }
+
+    function renderRecentActivity() {
+      const el = qs('recentActivityList');
+      const month = qs('mainMonth').value || getCurrentMonth();
+      const items = getAllHistoryItems().filter(item => monthFromDate(item.date) === month).slice(0, 8);
+      if (!items.length) { el.innerHTML = '<div class="empty">Nenhuma movimentação cadastrada nesse mês.</div>'; return; }
+      el.innerHTML = items.map(item => {
+        const tagClass = item.type === 'Entrada' ? 'income' : item.type === 'Gasto' ? 'expense' : 'invest';
+        return `<div class="list-item"><div><span class="tag ${tagClass}">${item.type}</span><strong>${item.name}</strong><span>${item.category}</span><small>${item.date || '-'}</small></div><div class="amount ${tagClass}">${formatCurrency(item.value)}</div></div>`;
+      }).join('');
+    }
+
+    function renderComparison() {
+      const body = qs('comparisonBody');
+      const current = qs('mainMonth').value || getCurrentMonth();
+      const from = qs('compareFrom').value || addMonths(current, -5);
+      const to = qs('compareTo').value || current;
+      const rows = [];
+      let cursor = from;
+      while (cursor <= to) {
+        const prev = getCarryFromPrevious(cursor);
+        const income = getMonthIncome(cursor);
+        const expenses = getMonthExpenses(cursor);
+        const investments = getMonthInvestments(cursor);
+        const finalBalance = prev + income - expenses - investments;
+        rows.push({ month: cursor, prev, income, expenses, investments, finalBalance });
+        cursor = addMonths(cursor, 1);
+      }
+      if (!rows.length) { body.innerHTML = '<tr><td colspan="6" class="empty">Sem dados para comparar.</td></tr>'; return; }
+      body.innerHTML = rows.map(row => `<tr><td>${row.month}</td><td>${formatCurrency(row.prev)}</td><td>${formatCurrency(row.income)}</td><td>${formatCurrency(row.expenses)}</td><td>${formatCurrency(row.investments)}</td><td>${formatCurrency(row.finalBalance)}</td></tr>`).join('');
+    }
+
+    function renderChart() {
+      const current = qs('mainMonth').value || getCurrentMonth();
+      const labels = [];
+      const incomes = [];
+      const expenses = [];
+      const balances = [];
+      for (let i = 5; i >= 0; i--) {
+        const month = addMonths(current, -i);
+        labels.push(month);
+        incomes.push(getMonthIncome(month));
+        expenses.push(getMonthExpenses(month) + getMonthInvestments(month));
+        balances.push(getCarryFromPrevious(month) + getMonthIncome(month) - getMonthExpenses(month) - getMonthInvestments(month));
+      }
+      const ctx = qs('financeChart');
+      if (financeChart) financeChart.destroy();
+      financeChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            { label: 'Entradas', data: incomes, backgroundColor: 'rgba(34,197,94,0.6)', borderColor: 'rgba(34,197,94,1)', borderWidth: 1 },
+            { label: 'Saídas', data: expenses, backgroundColor: 'rgba(239,68,68,0.55)', borderColor: 'rgba(239,68,68,1)', borderWidth: 1 },
+            { label: 'Saldo final', data: balances, type: 'line', backgroundColor: 'rgba(168,85,247,0.2)', borderColor: 'rgba(168,85,247,1)', borderWidth: 2, tension: 0.3 }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { labels: { color: '#e5e7eb' } } },
+          scales: {
+            x: { ticks: { color: '#e5e7eb' }, grid: { color: 'rgba(255,255,255,0.06)' } },
+            y: { ticks: { color: '#e5e7eb' }, grid: { color: 'rgba(255,255,255,0.06)' } }
+          }
+        }
+      });
+    }
+
+    function renderAll() {
+      renderSummary();
+      renderIncomeList();
+      renderExpenseList();
+      renderInvestmentList();
+      renderGoals();
+      renderHistory();
+      renderRecentActivity();
+      renderComparison();
+      renderChart();
+    }
+
+    function bindAppEvents() {
+      qs('loginBtn').addEventListener('click', login);
+      qs('registerBtn').addEventListener('click', register);
+      qs('recoverBtn').addEventListener('click', recoverPassword);
+      qs('logoutBtn').addEventListener('click', logout);
+      qs('salaryBtn').addEventListener('click', saveSalary);
+      qs('extraIncomeSubmitBtn').addEventListener('click', saveExtraIncome);
+      qs('extraIncomeCancelBtn').addEventListener('click', resetExtraIncomeForm);
+      qs('expenseSubmitBtn').addEventListener('click', saveExpense);
+      qs('expenseCancelEditBtn').addEventListener('click', resetExpenseForm);
+      qs('investSubmitBtn').addEventListener('click', saveInvestment);
+      qs('investCancelEditBtn').addEventListener('click', resetInvestmentForm);
+      qs('goalSubmitBtn').addEventListener('click', saveGoal);
+      qs('goalReserveBtn').addEventListener('click', addReservedToGoal);
+      qs('goalCancelEditBtn').addEventListener('click', resetGoalForm);
+      qs('runComparisonBtn').addEventListener('click', renderComparison);
+      ['mainMonth', 'filterMonth', 'filterDate', 'filterCategory', 'filterName', 'compareFrom', 'compareTo'].forEach(id => qs(id).addEventListener('input', () => {
+        if (id === 'mainMonth') loadData(); else if (id.startsWith('filter')) renderHistory(); else renderComparison();
+      }));
+    }
+
+    async function handleSession(session) {
+      currentUser = session?.user || null;
+      if (!currentUser) {
+        qs('authView').classList.remove('hidden');
+        qs('appView').classList.add('hidden');
+        return;
+      }
+      qs('authView').classList.add('hidden');
+      qs('appView').classList.remove('hidden');
+      qs('mainMonth').value = qs('mainMonth').value || getCurrentMonth();
+      qs('filterMonth').value = qs('mainMonth').value;
+      qs('compareTo').value = qs('mainMonth').value;
+      qs('compareFrom').value = addMonths(qs('mainMonth').value, -5);
+      await ensureProfile();
+      await loadData();
+    }
+
+    async function init() {
+      try {
+        buildSupabase();
+      } catch (err) {
+        document.body.innerHTML = `<div class="auth-shell"><div class="auth-card card"><h1>Configuração pendente</h1><p>${err.message}</p></div></div>`;
+        return;
+      }
+      setupTabs();
+      bindAppEvents();
+      const { data } = await supabaseClient.auth.getSession();
+      await handleSession(data.session);
+      supabaseClient.auth.onAuthStateChange(async (_event, session) => { await handleSession(session); });
+    }
+
+    init();
+  </script>
+</body>
+</html>
