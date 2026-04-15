@@ -583,7 +583,7 @@
       showLoader(true, 'Enviando link...');
       showAuthMessage('');
       const { error } = await supabaseClient.auth.resetPasswordForEmail(qs('recoverEmail').value.trim(), {
-        redirectTo: window.location.origin + window.location.pathname
+        redirectTo: 'https://financeiro-khaki-seven.vercel.app'
       });
       showLoader(false);
       if (error) return showAuthMessage(error.message);
