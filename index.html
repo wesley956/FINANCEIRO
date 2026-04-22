@@ -225,13 +225,68 @@
     .close-btn { width: 42px; height: 42px; padding: 0; }
     .full-chart { padding: 20px; margin-bottom: 18px; }
     .full-chart canvas { width: 100% !important; max-height: 360px; }
+    .chart-split {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+      gap: 18px;
+      align-items: stretch;
+    }
+    .chart-side-card {
+      padding: 18px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.035);
+      border: 1px solid rgba(255,255,255,0.08);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .chart-side-card h3 {
+      color: var(--title);
+      font-size: 1rem;
+    }
+    .chart-side-card p {
+      color: var(--muted);
+      font-size: .9rem;
+      line-height: 1.45;
+    }
+    .category-breakdown {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .category-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .category-row strong {
+      color: var(--title);
+      display: block;
+      margin-bottom: 4px;
+    }
+    .category-row small {
+      color: var(--muted);
+      display: block;
+    }
+    .category-row .right {
+      text-align: right;
+      white-space: nowrap;
+    }
     .footer-note { margin-top: 18px; color: var(--muted); text-align: center; font-size: .86rem; }
     .loader {
       position: fixed; inset: 0; background: rgba(8,12,23,0.65); display: none; place-items: center; z-index: 1400;
     }
     .loader.active { display: grid; }
     .loader-box { padding: 18px 22px; border-radius: 16px; }
-    @media (max-width: 980px) { .home-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 980px) {
+      .home-grid { grid-template-columns: 1fr; }
+      .chart-split { grid-template-columns: 1fr; }
+    }
     @media (max-width: 640px) {
       body { padding: 12px; }
       .list-item { flex-direction: column; }
@@ -322,20 +377,40 @@
       </section>
 
       <section class="card full-chart">
-        <h2 style="margin-bottom:14px;">Gráfico dos últimos meses</h2>
-        <canvas id="financeChart"></canvas>
+        <h2 style="margin-bottom:14px;">Visão geral dos últimos meses</h2>
+        <div class="chart-split">
+          <div>
+            <canvas id="financeChart"></canvas>
+          </div>
+          <div class="chart-side-card">
+            <div>
+              <h3>Para onde seu dinheiro está indo</h3>
+              <p>Esse gráfico mostra, no mês selecionado, qual categoria concentrou mais gastos.</p>
+            </div>
+            <div style="min-height:260px;">
+              <canvas id="expenseCategoryChart"></canvas>
+            </div>
+            <div>
+              <strong id="topExpenseCategory" style="color: var(--title); display:block;">Maior categoria: -</strong>
+              <small id="topExpenseCategoryHint" style="color: var(--muted);">Sem gastos no mês.</small>
+            </div>
+          </div>
+        </div>
       </section>
 
       <main class="home-grid">
         <section class="card section">
           <h2>Resumo do mês</h2>
           <div class="mini-stats">
-            <div class="mini-card"><div class="k">Salário lançado no mês</div><div class="v" id="salaryDisplay">R$ 0,00</div></div>
-            <div class="mini-card"><div class="k">Entradas extras</div><div class="v" id="extraIncomeDisplay">R$ 0,00</div></div>
+            <div class="mini-card"><div class="k">Qtd. de entradas</div><div class="v" id="incomeCount">0</div></div>
             <div class="mini-card"><div class="k">Qtd. de gastos</div><div class="v" id="expenseCount">0</div></div>
             <div class="mini-card"><div class="k">Qtd. de investimentos</div><div class="v" id="investmentCount">0</div></div>
+            <div class="mini-card"><div class="k">Categoria que mais pesou</div><div class="v" id="summaryTopCategory">-</div></div>
           </div>
-          <div class="list" id="recentActivityList"></div>
+          <div style="margin-top:18px;">
+            <h2 style="margin-bottom:10px;">Gastos por categoria</h2>
+            <div id="categoryBreakdown" class="category-breakdown"></div>
+          </div>
         </section>
 
         <section class="card section">
@@ -372,19 +447,22 @@
     <div class="modal">
       <div class="modal-header"><h2>Entradas</h2><button class="btn-secondary close-btn" onclick="closeModal('entriesModal')">×</button></div>
       <section class="section" style="padding:0;">
-        <h2 style="margin-bottom:12px;">Salário</h2>
-        <div class="form-grid">
-          <div class="field"><label for="salaryValue">Valor</label><input type="number" id="salaryValue" step="0.01"></div>
-          <div class="field"><label for="salaryDate">Data</label><input type="date" id="salaryDate"></div>
-          <div class="field" style="grid-column:1 / -1;"><label for="salaryNote">Observação</label><input type="text" id="salaryNote" placeholder="Ex: pagamento do mês"></div>
-        </div>
-        <div class="actions"><button class="btn-primary" id="salaryBtn">Salvar salário</button></div>
-
-        <h2 style="margin:24px 0 12px;">Outras entradas</h2>
+        <p style="color: var(--muted); margin-bottom:16px;">Agora tudo entra como <strong style="color: var(--title);">entrada</strong>. Se for salário, basta marcar a categoria ou escrever isso na observação.</p>
         <div class="form-grid">
           <div class="field"><label for="extraIncomeValue">Valor</label><input type="number" id="extraIncomeValue" step="0.01"></div>
           <div class="field"><label for="extraIncomeDate">Data</label><input type="date" id="extraIncomeDate"></div>
-          <div class="field" style="grid-column:1 / -1;"><label for="extraIncomeNote">Origem / Observação</label><input type="text" id="extraIncomeNote" placeholder="Ex: hora extra"></div>
+          <div class="field"><label for="extraIncomeCategory">Categoria</label>
+            <select id="extraIncomeCategory">
+              <option>Salário</option>
+              <option>Freelance</option>
+              <option>Venda</option>
+              <option>Reembolso</option>
+              <option>Presente</option>
+              <option>Rendimento</option>
+              <option>Outro</option>
+            </select>
+          </div>
+          <div class="field" style="grid-column:1 / -1;"><label for="extraIncomeNote">Origem / Observação</label><input type="text" id="extraIncomeNote" placeholder="Ex: pagamento do mês, hora extra, PIX recebido"></div>
         </div>
         <div class="actions">
           <button class="btn-primary" id="extraIncomeSubmitBtn">Adicionar entrada</button>
@@ -497,6 +575,7 @@
     let currentUser = null;
     let profileName = '';
     let financeChart = null;
+    let expenseCategoryChart = null;
     let editingExpenseId = null;
     let editingGoalId = null;
     let editingExtraIncomeId = null;
@@ -528,6 +607,20 @@
     }
     function formatCurrency(value) {
       return Number(value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    }
+    function encodeIncomeNote(category, note) {
+      const safeCategory = String(category || 'Outro').trim() || 'Outro';
+      const safeNote = String(note || '').trim();
+      return `[[CAT:${safeCategory}]] ${safeNote}`.trim();
+    }
+    function decodeIncomeMeta(note) {
+      const text = String(note || '').trim();
+      const match = text.match(/^\[\[CAT:(.*?)\]\]\s*(.*)$/);
+      if (!match) return { category: 'Entrada', cleanNote: text };
+      return {
+        category: (match[1] || 'Entrada').trim() || 'Entrada',
+        cleanNote: (match[2] || '').trim()
+      };
     }
     function openModal(id) { qs(id).classList.add('active'); }
     function closeModal(id) { qs(id).classList.remove('active'); }
@@ -678,10 +771,11 @@
     async function saveExtraIncome() {
       const value = parseFloat(qs('extraIncomeValue').value);
       const date = qs('extraIncomeDate').value;
+      const category = qs('extraIncomeCategory').value;
       const note = qs('extraIncomeNote').value.trim();
       if (!value || value <= 0 || !date) return alert('Preencha valor e data da entrada.');
       showLoader(true, editingExtraIncomeId ? 'Atualizando entrada...' : 'Salvando entrada...');
-      const payload = { value, date, note };
+      const payload = { value, date, note: encodeIncomeNote(category, note) };
       const res = editingExtraIncomeId
         ? await supabaseClient.from('extra_incomes').update(payload).eq('id', editingExtraIncomeId)
         : await supabaseClient.from('extra_incomes').insert(payload);
@@ -693,16 +787,21 @@
 
     function editExtraIncome(id) {
       const item = state.extraIncomes.find(i => i.id === id); if (!item) return;
+      const meta = decodeIncomeMeta(item.note);
       editingExtraIncomeId = id;
       qs('extraIncomeValue').value = item.value || '';
       qs('extraIncomeDate').value = item.date || '';
-      qs('extraIncomeNote').value = item.note || '';
+      qs('extraIncomeCategory').value = meta.category || 'Outro';
+      qs('extraIncomeNote').value = meta.cleanNote || '';
       qs('extraIncomeSubmitBtn').textContent = 'Salvar edição';
       qs('extraIncomeCancelBtn').classList.remove('hidden');
     }
     function resetExtraIncomeForm() {
       editingExtraIncomeId = null;
-      qs('extraIncomeValue').value = ''; qs('extraIncomeDate').value = ''; qs('extraIncomeNote').value = '';
+      qs('extraIncomeValue').value = '';
+      qs('extraIncomeDate').value = '';
+      qs('extraIncomeCategory').value = 'Salário';
+      qs('extraIncomeNote').value = '';
       qs('extraIncomeSubmitBtn').textContent = 'Adicionar entrada';
       qs('extraIncomeCancelBtn').classList.add('hidden');
     }
@@ -880,7 +979,18 @@
     function getAllHistoryItems() {
       const items = [];
       if (state.salary) items.push({ type: 'Entrada', name: 'Salário', category: 'Salário', date: state.salary.date || '', value: Number(state.salary.value || 0), note: state.salary.note || '' });
-      state.extraIncomes.forEach(item => items.push({ type: 'Entrada', name: item.note || 'Entrada extra', category: 'Outra entrada', date: item.date || '', value: Number(item.value || 0), note: item.note || '', id: item.id }));
+      state.extraIncomes.forEach(item => {
+        const meta = decodeIncomeMeta(item.note);
+        items.push({
+          type: 'Entrada',
+          name: meta.cleanNote || meta.category || 'Entrada',
+          category: meta.category || 'Entrada',
+          date: item.date || '',
+          value: Number(item.value || 0),
+          note: meta.cleanNote || '',
+          id: item.id
+        });
+      });
       state.expenses.forEach(item => items.push({ type: 'Gasto', name: item.name, category: item.category, date: item.date || '', value: Number(item.value || 0), note: item.note || '', id: item.id }));
       state.investments.forEach(item => items.push({ type: 'Investimento', name: item.name, category: item.type, date: item.date || '', value: Number(item.value || 0), note: item.note || '', id: item.id }));
       return items.sort((a,b) => String(b.date || '').localeCompare(String(a.date || '')));
@@ -900,10 +1010,19 @@
       qs('monthBalance').textContent = formatCurrency(balance);
       qs('previousMonthBalance').textContent = formatCurrency(previous);
       qs('carryFromPrevious').value = formatCurrency(previous);
-      qs('salaryDisplay').textContent = formatCurrency(salary);
-      qs('extraIncomeDisplay').textContent = formatCurrency(extra);
-      qs('expenseCount').textContent = String(recordsForMonth(state.expenses, month).length);
+      const monthExpenses = recordsForMonth(state.expenses, month);
+      const expenseCategoryTotals = monthExpenses.reduce((acc, item) => {
+        const key = item.category || 'Outros';
+        acc[key] = acc[key] || { count: 0, total: 0 };
+        acc[key].count += 1;
+        acc[key].total += Number(item.value || 0);
+        return acc;
+      }, {});
+      const topCategoryEntry = Object.entries(expenseCategoryTotals).sort((a, b) => b[1].total - a[1].total)[0];
+      qs('incomeCount').textContent = String(recordsForMonth(state.extraIncomes, month).length + (salary > 0 ? 1 : 0));
+      qs('expenseCount').textContent = String(monthExpenses.length);
       qs('investmentCount').textContent = String(recordsForMonth(state.investments, month).length);
+      qs('summaryTopCategory').textContent = topCategoryEntry ? topCategoryEntry[0] : '-';
       qs('totalInvest').textContent = formatCurrency(sumValues(state.investments));
       qs('investedPatrimony').textContent = formatCurrency(getPatrimony());
       qs('estimatedIncome').textContent = formatCurrency(getEstimatedIncome());
@@ -913,10 +1032,11 @@
       const el = qs('incomeList');
       const parts = [];
       if (state.salary) {
-        parts.push(`<div class="list-item"><div><span class="tag income">Salário</span><strong>${state.salary.note || 'Salário do mês'}</strong><small>${state.salary.date || '-'}</small></div><div class="amount income">${formatCurrency(state.salary.value)}</div></div>`);
+        parts.push(`<div class="list-item"><div><span class="tag income">Salário antigo</span><strong>${state.salary.note || 'Salário do mês'}</strong><small>${state.salary.date || '-'}</small></div><div class="amount income">${formatCurrency(state.salary.value)}</div></div>`);
       }
       state.extraIncomes.forEach(item => {
-        parts.push(`<div class="list-item"><div><span class="tag income">Outra entrada</span><strong>${item.note || 'Entrada extra'}</strong><small>${item.date || '-'}</small></div><div><div class="amount income">${formatCurrency(item.value)}</div><div class="actions" style="justify-content:flex-end; margin-top:8px;"><button class="btn-secondary" onclick="editExtraIncome('${item.id}')">Editar</button><button class="btn-danger" onclick="removeItem('income','${item.id}')">Excluir</button></div></div></div>`);
+        const meta = decodeIncomeMeta(item.note);
+        parts.push(`<div class="list-item"><div><span class="tag income">${meta.category || 'Entrada'}</span><strong>${meta.cleanNote || meta.category || 'Entrada'}</strong><small>${item.date || '-'}</small></div><div><div class="amount income">${formatCurrency(item.value)}</div><div class="actions" style="justify-content:flex-end; margin-top:8px;"><button class="btn-secondary" onclick="editExtraIncome('${item.id}')">Editar</button><button class="btn-danger" onclick="removeItem('income','${item.id}')">Excluir</button></div></div></div>`);
       });
       el.innerHTML = parts.length ? parts.join('') : '<div class="empty">Nenhuma entrada cadastrada ainda.</div>';
     }
@@ -968,14 +1088,44 @@
     }
 
     function renderRecentActivity() {
-      const el = qs('recentActivityList');
+      const el = qs('categoryBreakdown');
       const month = qs('mainMonth').value || getCurrentMonth();
-      const items = getAllHistoryItems().filter(item => monthFromDate(item.date) === month).slice(0, 8);
-      if (!items.length) { el.innerHTML = '<div class="empty">Nenhuma movimentação cadastrada nesse mês.</div>'; return; }
-      el.innerHTML = items.map(item => {
-        const tagClass = item.type === 'Entrada' ? 'income' : item.type === 'Gasto' ? 'expense' : 'invest';
-        return `<div class="list-item"><div><span class="tag ${tagClass}">${item.type}</span><strong>${item.name}</strong><span>${item.category}</span><small>${item.date || '-'}</small></div><div class="amount ${tagClass}">${formatCurrency(item.value)}</div></div>`;
-      }).join('');
+      const grouped = recordsForMonth(state.expenses, month).reduce((acc, item) => {
+        const key = item.category || 'Outros';
+        acc[key] = acc[key] || { count: 0, total: 0 };
+        acc[key].count += 1;
+        acc[key].total += Number(item.value || 0);
+        return acc;
+      }, {});
+      const rows = Object.entries(grouped).sort((a, b) => b[1].total - a[1].total);
+      if (!rows.length) {
+        el.innerHTML = '<div class="empty">Nenhum gasto cadastrado nesse mês.</div>';
+        return;
+      }
+      el.innerHTML = rows.map(([category, data]) => `
+        <div class="category-row">
+          <div>
+            <strong>${category}</strong>
+            <small>${data.count} gasto(s) no mês</small>
+          </div>
+          <div class="right">
+            <strong>${formatCurrency(data.total)}</strong>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function getExpenseCategoryData(month) {
+      const grouped = recordsForMonth(state.expenses, month).reduce((acc, item) => {
+        const key = item.category || 'Outros';
+        acc[key] = acc[key] || { total: 0, count: 0 };
+        acc[key].total += Number(item.value || 0);
+        acc[key].count += 1;
+        return acc;
+      }, {});
+      return Object.entries(grouped)
+        .sort((a, b) => b[1].total - a[1].total)
+        .map(([category, data]) => ({ category, total: data.total, count: data.count }));
     }
 
     function renderComparison() {
@@ -996,6 +1146,65 @@
       }
       if (!rows.length) { body.innerHTML = '<tr><td colspan="6" class="empty">Sem dados para comparar.</td></tr>'; return; }
       body.innerHTML = rows.map(row => `<tr><td>${row.month}</td><td>${formatCurrency(row.prev)}</td><td>${formatCurrency(row.income)}</td><td>${formatCurrency(row.expenses)}</td><td>${formatCurrency(row.investments)}</td><td>${formatCurrency(row.finalBalance)}</td></tr>`).join('');
+    }
+
+    function renderExpenseCategoryChart() {
+      const month = qs('mainMonth').value || getCurrentMonth();
+      const categoryData = getExpenseCategoryData(month);
+      const labels = categoryData.map(item => item.category);
+      const values = categoryData.map(item => item.total);
+      const top = categoryData[0];
+
+      qs('topExpenseCategory').textContent = top
+        ? `Maior categoria: ${top.category}`
+        : 'Maior categoria: -';
+      qs('topExpenseCategoryHint').textContent = top
+        ? `${top.count} gasto(s) • ${formatCurrency(top.total)} no mês`
+        : 'Sem gastos no mês.';
+
+      const ctx = qs('expenseCategoryChart');
+      if (!ctx) return;
+      if (expenseCategoryChart) expenseCategoryChart.destroy();
+
+      expenseCategoryChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: labels.length ? labels : ['Sem gastos'],
+          datasets: [{
+            data: values.length ? values : [1],
+            backgroundColor: [
+              'rgba(168,85,247,0.82)',
+              'rgba(239,68,68,0.78)',
+              'rgba(96,165,250,0.78)',
+              'rgba(250,204,21,0.78)',
+              'rgba(34,197,94,0.78)',
+              'rgba(244,114,182,0.78)',
+              'rgba(45,212,191,0.78)',
+              'rgba(251,146,60,0.78)'
+            ],
+            borderColor: 'rgba(17,24,39,0.9)',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              labels: { color: '#e5e7eb' }
+            },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  if (!values.length) return 'Sem gastos';
+                  const value = Number(ctx.raw || 0);
+                  return `${ctx.label}: ${formatCurrency(value)}`;
+                }
+              }
+            }
+          }
+        }
+      });
     }
 
     function renderChart() {
@@ -1045,6 +1254,7 @@
       renderRecentActivity();
       renderComparison();
       renderChart();
+      renderExpenseCategoryChart();
     }
 
     function bindAppEvents() {
@@ -1052,7 +1262,6 @@
       qs('registerBtn').addEventListener('click', register);
       qs('recoverBtn').addEventListener('click', recoverPassword);
       qs('logoutBtn').addEventListener('click', logout);
-      qs('salaryBtn').addEventListener('click', saveSalary);
       qs('extraIncomeSubmitBtn').addEventListener('click', saveExtraIncome);
       qs('extraIncomeCancelBtn').addEventListener('click', resetExtraIncomeForm);
       qs('expenseSubmitBtn').addEventListener('click', saveExpense);
@@ -1094,6 +1303,7 @@
       }
       setupTabs();
       bindAppEvents();
+      if (qs('extraIncomeCategory')) qs('extraIncomeCategory').value = 'Salário';
       const { data } = await supabaseClient.auth.getSession();
       await handleSession(data.session);
       supabaseClient.auth.onAuthStateChange(async (_event, session) => { await handleSession(session); });
